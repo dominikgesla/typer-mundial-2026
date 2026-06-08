@@ -461,19 +461,23 @@ else:
                 obecny_typ = slownik_typow.get(mecz_id)
                 
                 if mozna_typowac:
-                    col1, col2, col3, col4 = st.columns([1.5, 0.5, 1.5, 2])
                     wartosc_home = obecny_typ[0] if obecny_typ else 0
                     wartosc_away = obecny_typ[1] if obecny_typ else 0
                     
-                    with col1:
-                        typ_h = st.number_input("H", min_value=0, max_value=20, step=1, value=wartosc_home, key=f"h_{mecz_id}", label_visibility="collapsed")
-                    with col2:
-                        st.markdown("<h3 style='text-align: center; margin-top: -10px;'>:</h3>", unsafe_allow_html=True)
-                    with col3:
-                        typ_a = st.number_input("A", min_value=0, max_value=20, step=1, value=wartosc_away, key=f"a_{mecz_id}", label_visibility="collapsed")
-                    with col4:
-                        etykieta_przycisku = "Zaktualizuj typ" if obecny_typ else "Zapisz typ"
-                        if st.button(etykieta_przycisku, key=f"btn_{mecz_id}", width="stretch"):
+                    with st.form(key=f"form_{mecz_id}", border=False):
+                        col1, col2, col3, col4 = st.columns([1.5, 0.5, 1.5, 2])
+                        
+                        with col1:
+                            typ_h = st.number_input("H", min_value=0, max_value=20, step=1, value=wartosc_home, key=f"h_{mecz_id}", label_visibility="collapsed")
+                        with col2:
+                            st.markdown("<h3 style='text-align: center; margin-top: -10px;'>:</h3>", unsafe_allow_html=True)
+                        with col3:
+                            typ_a = st.number_input("A", min_value=0, max_value=20, step=1, value=wartosc_away, key=f"a_{mecz_id}", label_visibility="collapsed")
+                        with col4:
+                            etykieta_przycisku = "Zaktualizuj typ" if obecny_typ else "Zapisz typ"
+                            zapisano = st.form_submit_button(etykieta_przycisku, width="stretch")
+                            
+                        if zapisano:
                             with conn.session as s_zapis:
                                 if obecny_typ:
                                     s_zapis.execute(text('''
