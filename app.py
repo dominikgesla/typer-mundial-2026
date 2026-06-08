@@ -7,6 +7,13 @@ import time
 from datetime import datetime, timezone
 import requests
 
+# --- KONFIGURACJA STRONY (MUSI BYĆ NA SAMEJ GÓRZE!) ---
+st.set_page_config(
+    page_title="Typer Mundial 2026",
+    page_icon="🏆",                   
+    layout="centered"                 
+)
+
 # --- KONFIGURACJA API FOOTBALL-DATA ---
 API_KEY = st.secrets["API_KEY"]
 
