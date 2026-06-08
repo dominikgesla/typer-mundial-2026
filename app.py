@@ -37,7 +37,7 @@ def synchronizuj_wyniki_i_punkty():
     if not API_KEY or API_KEY == "WKLEJ_TUTAJ_SWOJ_KLUCZ_Z_FOOTBALL_DATA":
         return 
         
-    # --- NOWOŚĆ: ZŁOTA OPTYMALIZACJA (BRAMKARZ) ---
+    # --- ZŁOTA OPTYMALIZACJA (BRAMKARZ) ---
     with conn.session as s:
         # Szukamy meczu, który już się zaczął, ale jeszcze się nie zakończył
         aktywne_mecze = s.execute(text('''
@@ -47,7 +47,7 @@ def synchronizuj_wyniki_i_punkty():
         '''), {"teraz": datetime.now(timezone.utc)}).fetchone()
         
         # Jeśli nie ma takich meczów (np. jest rano, a mecze grają wieczorem), 
-        # przerywamy działanie i w ogóle NIE łączymy się z zewnętrznym API!
+        # przerywamy działanie i w ogóle NIE łączymy się z zewnętrznym API
         if not aktywne_mecze:
             return
 
