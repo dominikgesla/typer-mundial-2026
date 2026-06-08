@@ -37,6 +37,21 @@ def synchronizuj_wyniki_i_punkty():
     if not API_KEY or API_KEY == "WKLEJ_TUTAJ_SWOJ_KLUCZ_Z_FOOTBALL_DATA":
         return 
         
+    # --- NOWOŚĆ: ZŁOTA OPTYMALIZACJA (BRAMKARZ) ---
+    with conn.session as s:
+        # Szukamy meczu, który już się zaczął, ale jeszcze się nie zakończył
+        aktywne_mecze = s.execute(text('''
+            SELECT id FROM mecze 
+            WHERE data_rozpoczecia <= :teraz 
+            AND status NOT IN ('FINISHED', 'AWARDED', 'CANCELLED')
+        '''), {"teraz": datetime.now(timezone.utc)}).fetchone()
+        
+        # Jeśli nie ma takich meczów (np. jest rano, a mecze grają wieczorem), 
+        # przerywamy działanie i w ogóle NIE łączymy się z zewnętrznym API!
+        if not aktywne_mecze:
+            return
+
+    # Jeśli przeszliśmy bramkarza (mecz trwa), pobieramy wyniki na żywo
     url = "https://api.football-data.org/v4/competitions/WC/matches"
     headers = {"X-Auth-Token": API_KEY.strip()}
     
@@ -72,7 +87,7 @@ def synchronizuj_wyniki_i_punkty():
                 '''))
                 s.commit()
     except Exception:
-        pass 
+        pass
 
 synchronizuj_wyniki_i_punkty()
 
