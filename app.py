@@ -31,6 +31,7 @@ def verify_password(password, hashed_password):
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 # --- RDZEŃ POBIERANIA WYNIKÓW ---
+@st.cache_data(ttl=60)
 def pobierz_wyniki_z_api():
     if not API_KEY or API_KEY == "WKLEJ_TUTAJ_SWOJ_KLUCZ_Z_FOOTBALL_DATA":
         return 
@@ -73,7 +74,6 @@ def pobierz_wyniki_z_api():
         pass 
 
 # --- INTELIGENTNY AUTOMAT AKTUALIZACJI Z OKNAMI CZASOWYMI ---
-@st.cache_data(ttl=60)
 def automatyczna_synchronizacja():
     with conn.session as s:
         aktywne_mecze = s.execute(text('''
@@ -101,7 +101,7 @@ def automatyczna_synchronizacja():
             czy_odpytac_api = True
             break
         # 3. Nadrabianie nocnych meczów (więcej niż 120 minut i wciąż brak statusu FINISHED)
-        elif minuty_od_startu > 120:
+        elif minuty_od_startu > 180:
             czy_odpytac_api = True
             break
 
