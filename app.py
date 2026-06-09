@@ -7,7 +7,6 @@ import time
 from datetime import datetime, timezone
 import requests
 
-# --- KONFIGURACJA STRONY (MUSI BYĆ NA SAMEJ GÓRZE!) ---
 st.set_page_config(
     page_title="Typer Mundial 2026",
     page_icon="🏆",                   
@@ -31,27 +30,11 @@ def hash_password(password):
 def verify_password(password, hashed_password):
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
 
-# --- SILNIK AUTOMATYCZNEJ SYNCHRONIZACJI W TLE ---
-@st.cache_data(ttl=60)
-def synchronizuj_wyniki_i_punkty():
+# --- RDZEŃ POBIERANIA WYNIKÓW ---
+def pobierz_wyniki_z_api():
     if not API_KEY or API_KEY == "WKLEJ_TUTAJ_SWOJ_KLUCZ_Z_FOOTBALL_DATA":
         return 
         
-    # --- ZŁOTA OPTYMALIZACJA (BRAMKARZ) ---
-    with conn.session as s:
-        # Szukamy meczu, który już się zaczął, ale jeszcze się nie zakończył
-        aktywne_mecze = s.execute(text('''
-            SELECT id FROM mecze 
-            WHERE data_rozpoczecia <= :teraz 
-            AND status NOT IN ('FINISHED', 'AWARDED', 'CANCELLED')
-        '''), {"teraz": datetime.now(timezone.utc)}).fetchone()
-        
-        # Jeśli nie ma takich meczów (np. jest rano, a mecze grają wieczorem), 
-        # przerywamy działanie i w ogóle NIE łączymy się z zewnętrznym API
-        if not aktywne_mecze:
-            return
-
-    # Jeśli przeszliśmy bramkarza (mecz trwa), pobieramy wyniki na żywo
     url = "https://api.football-data.org/v4/competitions/WC/matches"
     headers = {"X-Auth-Token": API_KEY.strip()}
     
@@ -87,9 +70,46 @@ def synchronizuj_wyniki_i_punkty():
                 '''))
                 s.commit()
     except Exception:
-        pass
+        pass 
 
-synchronizuj_wyniki_i_punkty()
+# --- INTELIGENTNY AUTOMAT AKTUALIZACJI Z OKNAMI CZASOWYMI ---
+@st.cache_data(ttl=60)
+def automatyczna_synchronizacja():
+    with conn.session as s:
+        aktywne_mecze = s.execute(text('''
+            SELECT id, data_rozpoczecia FROM mecze 
+            WHERE data_rozpoczecia <= :teraz 
+            AND status NOT IN ('FINISHED', 'AWARDED', 'CANCELLED')
+        '''), {"teraz": datetime.now(timezone.utc)}).fetchall()
+        
+        if not aktywne_mecze:
+            return
+
+    teraz = datetime.now(timezone.utc)
+    czy_odpytac_api = False
+    
+    for mecz in aktywne_mecze:
+        start_meczu = mecz[1]
+        minuty_od_startu = (teraz - start_meczu).total_seconds() / 60.0
+        
+        # 1. Okno: Przerwa (od 45 do 55 minuty)
+        if 45 <= minuty_od_startu <= 55:
+            czy_odpytac_api = True
+            break
+        # 2. Okno: Koniec meczu (od 105 do 120 minuty)
+        elif 105 <= minuty_od_startu <= 120:
+            czy_odpytac_api = True
+            break
+        # 3. Nadrabianie nocnych meczów (więcej niż 120 minut i wciąż brak statusu FINISHED)
+        elif minuty_od_startu > 120:
+            czy_odpytac_api = True
+            break
+
+    if czy_odpytac_api:
+        pobierz_wyniki_z_api()
+
+# Uruchomienie automatu w tle
+automatyczna_synchronizacja()
 
 # --- MECHANIZM AUTO-WYLOGOWANIA (BRAK AKTYWNOŚCI) ---
 LIMIT_NIEAKTYWNOSCI = 30 * 60  
@@ -228,7 +248,6 @@ else:
         st.divider()
         st.subheader("🛠️ Panel Administratora")
         
-        # 1. Zarządzanie użytkownikami (Usuwanie kont)
         with st.expander("👤 Zarządzanie użytkownikami"):
             with conn.session as s:
                 users = s.execute(text("SELECT id, login FROM uzytkownicy WHERE login != 'maniekfhuj'")).fetchall()
@@ -246,7 +265,6 @@ else:
             else:
                 st.info("Brak innych użytkowników w systemie.")
 
-        # 2. Reset hasła znajomemu
         with st.expander("🔑 Resetuj hasło znajomemu"):
             with conn.session as s:
                 users = s.execute(text("SELECT login FROM uzytkownicy WHERE login != 'maniekfhuj'")).fetchall()
@@ -271,9 +289,8 @@ else:
             else:
                 st.info("Brak innych użytkowników w systemie.")
         
-        # 3. Synchronizacja API
         with st.expander("⚽ Opcje Administratora (Synchronizacja)"):
-            st.warning("Użyj tego przycisku tylko, jeśli chcesz pobrać listę meczów od zera. Wyniki meczów odświeżają się same w tle.")
+            st.warning("Użyj tego przycisku tylko, jeśli chcesz pobrać listę meczów od zera.")
             if st.button("Pobierz / Napraw mecze Mundialu", type="primary", key="btn_pobierz_mecze"):
                 url = "https://api.football-data.org/v4/competitions/WC/matches"
                 headers = {"X-Auth-Token": API_KEY.strip()}
@@ -307,7 +324,6 @@ else:
                     except Exception as e:
                         st.error(f"Połączenie nie powiodło się: {e}")
 
-        # 4. Ręczne testy aplikacji
         with st.expander("📝 Ręczne dodawanie i edycja meczów (Do testów)"):
             st.markdown("### Krok 1: Dodaj sztuczny mecz")
             col_h, col_a = st.columns(2)
@@ -326,7 +342,7 @@ else:
                 if nowy_home and nowy_away:
                     dt_local = datetime.combine(nowa_data, nowy_czas).replace(tzinfo=ZoneInfo("Europe/Warsaw"))
                     dt_utc = dt_local.astimezone(timezone.utc)
-                    fake_id = int(time.time()) # Mniejsze fałszywe ID, żeby baza to przyjęła bez błędu
+                    fake_id = int(time.time()) 
                     
                     with conn.session as s:
                         s.execute(text('''
@@ -384,7 +400,6 @@ else:
     st.divider()
     st.header("🏆 Tabela Liderów")
     with conn.session as s:
-        # Sumujemy punkty dla każdego gracza, ALE wykluczamy konto maniekfhuj z rankingów
         ranking = s.execute(text('''
             SELECT u.login, SUM(COALESCE(t.punkty, 0)) as total_pkt
             FROM uzytkownicy u
@@ -400,10 +415,18 @@ else:
         else:
             st.info("Brak graczy do wyświetlenia.")
 
-    # --- WIDOK GŁÓWNY (LISTA MECZÓW I TYPOWANIE) ---
+    # --- WIDOK GŁÓWNY (LISTA MECZÓW I RĘCZNE ODŚWIEŻANIE) ---
     st.divider()
-    st.subheader("📅 Nadchodzące mecze do typowania")
     
+    col_tytul, col_odswiez = st.columns([2.5, 1.5])
+    with col_tytul:
+        st.subheader("📅 Nadchodzące mecze")
+    with col_odswiez:
+        if st.button("🔄 Odśwież wyniki na żywo", width="stretch", type="primary"):
+            with st.spinner("Pobieranie najnowszych danych..."):
+                pobierz_wyniki_z_api()
+            st.rerun()
+            
     with conn.session as s:
         typy_usera = s.execute(
             text("SELECT mecz_id, typ_home, typ_away FROM typy WHERE uzytkownik_id = :uid"), 
