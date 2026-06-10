@@ -184,6 +184,7 @@ if not st.session_state.zalogowany:
                     st.rerun()
                 else:
                     st.error("Nieprawidłowy login lub hasło.")
+        st.markdown("<div style='text-align: center; margin-top: 15px; opacity: 0.7; font-size: 0.9em;'>🔑 Zapomniałeś hasła? Skontaktuj się z majstrem adminem</div>", unsafe_allow_html=True)
                     
     with tab_rejestracja:
         st.subheader("Nowe konto")
@@ -250,13 +251,13 @@ else:
                         st.error("Obecne hasło jest nieprawidłowe.")
 
    # --- UKRYTY PANEL ADMINISTRATORA ---
-    if st.session_state.login == "maniekfhuj":
+    if st.session_state.login == "admin":
         st.divider()
         st.subheader("🛠️ Panel Administratora")
         
         with st.expander("👤 Zarządzanie użytkownikami"):
             with conn.session as s:
-                users = s.execute(text("SELECT id, login FROM uzytkownicy WHERE login != 'maniekfhuj'")).fetchall()
+                users = s.execute(text("SELECT id, login FROM uzytkownicy WHERE login != 'admin'")).fetchall()
                 lista_userow_del = {u[1]: u[0] for u in users}
             
             if lista_userow_del:
@@ -271,9 +272,9 @@ else:
             else:
                 st.info("Brak innych użytkowników w systemie.")
 
-        with st.expander("🔑 Resetuj hasło znajomemu"):
+        with st.expander("🔑 Resetuj hasło użytkownikowi"):
             with conn.session as s:
-                users = s.execute(text("SELECT login FROM uzytkownicy WHERE login != 'maniekfhuj'")).fetchall()
+                users = s.execute(text("SELECT login FROM uzytkownicy WHERE login != 'admin'")).fetchall()
                 lista_userow = [u[0] for u in users]
                 
             if lista_userow:
@@ -410,7 +411,7 @@ else:
             SELECT u.login, SUM(COALESCE(t.punkty, 0)) as total_pkt
             FROM uzytkownicy u
             LEFT JOIN typy t ON u.id = t.uzytkownik_id
-            WHERE u.login != 'maniekfhuj'
+            WHERE u.login != 'admin'
             GROUP BY u.login
             ORDER BY total_pkt DESC, u.login ASC
         ''')).fetchall()
@@ -432,6 +433,18 @@ else:
             with st.spinner("Pobieranie najnowszych danych..."):
                 pobierz_wyniki_z_api()
             st.rerun()
+
+    # --- PANEL Z ZASADAMI PUNKTACJI ---
+    with st.expander("ℹ️ Zobacz zasady punktacji turnieju"):
+        st.markdown("""
+        **System naliczania punktów za każdy mecz:**
+        * 🎯 **5 punktów** – **Dokładny wynik** (trafiony idealnie w punkt, np. Twój typ: *2:1*, wynik meczu: *2:1*)
+        * ⚖️ **3 punkty** – **Trafiony remis** (wytypowany remis i padł remis, ale inny stosunek bramek, np. Twój typ: *1:1*, wynik meczu: *2:2*)
+        * 👍 **1 punkt** – **Trafiony zwycięzca** (wytypowany dobry zwycięzca, ale inny wynik, np. Twój typ: *1:0*, wynik meczu: *3:1*)
+        * ❌ **0 punktów** – **Błędny typ** (nietrafiony ani zwycięzca, ani remis)
+            
+        *Możliwość dodawania i edycji typów zostaje automatycznie zablokowana w momencie planowanego rozpoczęcia meczu.*
+        """)
             
     with conn.session as s:
         # 1. Pobieranie danych z bazy
@@ -459,7 +472,7 @@ else:
             FROM mecze 
             ORDER BY data_rozpoczecia ASC
         ''')).fetchall()
-        
+                
         if not mecze:
             st.info("Brak meczów w bazie.")
         else:
@@ -511,7 +524,6 @@ else:
                 wynik_wyswietl = f"&nbsp;&nbsp;{m_wh} : {m_wa}&nbsp;&nbsp;" if m_wh is not None else "&nbsp;&nbsp;⚔️&nbsp;&nbsp;"
                 st.markdown(f"#### {m_home} {wynik_wyswietl} {m_away}")
                 
-                # POWIĘKSZONA CZCIONKA DLA KOLEGI (Zastępuje małe st.caption)
                 st.markdown(f"<div style='font-size: 1.15em; opacity: 0.8; margin-bottom: 15px;'>🕒 <b>{m_czas}</b> | Status: <b>{m_status}</b></div>", unsafe_allow_html=True)
                 
                 obecny_t = slownik_typow.get(mid)
@@ -569,7 +581,7 @@ else:
                                 else:
                                     st.markdown(f"👤 **{g_log}**: {g_th} : {g_ta}{z_pkt}")
                     else:
-                        with st.expander("👀 Zobacz, jak obstawili inni znajomi"):
+                        with st.expander("👀 Zobacz, jak obstawili inni gracze"):
                             st.caption("Nikt nie obstawił tego meczu.")
                 st.divider()
 
