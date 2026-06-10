@@ -426,14 +426,15 @@ else:
     
     col_tytul, col_odswiez = st.columns([2.5, 1.5])
     with col_tytul:
-        st.subheader("📅 Nadchodzące mecze")
+        st.subheader("📅 Terminarz i Typy")
     with col_odswiez:
-        if st.button("🔄 Odśwież wyniki na żywo", width="stretch", type="primary"):
+        if st.button("🔄 Odśwież wyniki", width="stretch", type="primary"):
             with st.spinner("Pobieranie najnowszych danych..."):
                 pobierz_wyniki_z_api()
             st.rerun()
             
     with conn.session as s:
+        # 1. Pobieranie danych z bazy
         typy_usera = s.execute(
             text("SELECT mecz_id, typ_home, typ_away FROM typy WHERE uzytkownik_id = :uid"), 
             {"uid": st.session_state.user_id}
@@ -462,11 +463,17 @@ else:
         if not mecze:
             st.info("Brak meczów w bazie.")
         else:
+            # 2. Segregacja meczów do odpowiednich koszyków
+            mecze_aktywne = []
+            mecze_zakonczone = []
+            mecze_kalendarz = {}
+
             for mecz in mecze:
                 mecz_id, home, away, data_utc, status, wynik_h, wynik_a = mecz
                 
                 data_pl = data_utc.astimezone(ZoneInfo("Europe/Warsaw"))
                 czas_format = data_pl.strftime("%d.%m.%Y, godz. %H:%M")
+                dzien_klucz = data_pl.strftime("%d.%m.%Y")
                 obecny_czas_utc = datetime.now(timezone.utc)
                 
                 mozna_typowac = False
@@ -477,72 +484,116 @@ else:
                         status_pl = "Zaplanowany"
                         mozna_typowac = True
                     else:
-                        status_pl = "Rozpoczęty (Zakłady w toku)"
+                        status_pl = "Rozpoczęty (Zakłady zamknięte)"
                         mozna_typowac = False
                 elif status == "FINISHED": status_pl = "Zakończony"
                 elif status == "IN_PLAY": status_pl = "W trakcie"
                 elif status == "PAUSED": status_pl = "Przerwa"
                 
-                wynik_wyswietl = f"&nbsp;&nbsp;{wynik_h} : {wynik_a}&nbsp;&nbsp;" if wynik_h is not None else "&nbsp;&nbsp;⚔️&nbsp;&nbsp;"
-                st.markdown(f"#### {home} {wynik_wyswietl} {away}")
-                st.caption(f"🕒 **{czas_format}** | Status: {status_pl}")
+                # Zwijamy wszystko w jeden "pakiet" informacyjny
+                pakiet = (mecz_id, home, away, czas_format, status_pl, mozna_typowac, wynik_h, wynik_a)
+
+                # Rozdzielanie do zakładek (Zakończone vs Reszta)
+                if status in ["FINISHED", "AWARDED"]:
+                    mecze_zakonczone.append(pakiet)
+                else:
+                    mecze_aktywne.append(pakiet)
+
+                # Grupowanie do Kalendarza
+                if dzien_klucz not in mecze_kalendarz:
+                    mecze_kalendarz[dzien_klucz] = []
+                mecze_kalendarz[dzien_klucz].append(pakiet)
+
+            # 3. Funkcja pomocnicza: Rysuje cały blok meczu (zapobiega konfliktom i powielaniu kodu)
+            def renderuj_mecz(pakiet_meczu, prefix_zakladki):
+                mid, m_home, m_away, m_czas, m_status, m_mozna, m_wh, m_wa = pakiet_meczu
                 
-                obecny_typ = slownik_typow.get(mecz_id)
+                wynik_wyswietl = f"&nbsp;&nbsp;{m_wh} : {m_wa}&nbsp;&nbsp;" if m_wh is not None else "&nbsp;&nbsp;⚔️&nbsp;&nbsp;"
+                st.markdown(f"#### {m_home} {wynik_wyswietl} {m_away}")
                 
-                if mozna_typowac:
-                    wartosc_home = obecny_typ[0] if obecny_typ else 0
-                    wartosc_away = obecny_typ[1] if obecny_typ else 0
+                # POWIĘKSZONA CZCIONKA DLA KOLEGI (Zastępuje małe st.caption)
+                st.markdown(f"<div style='font-size: 1.15em; opacity: 0.8; margin-bottom: 15px;'>🕒 <b>{m_czas}</b> | Status: <b>{m_status}</b></div>", unsafe_allow_html=True)
+                
+                obecny_t = slownik_typow.get(mid)
+                
+                if m_mozna:
+                    val_h = obecny_t[0] if obecny_t else 0
+                    val_a = obecny_t[1] if obecny_t else 0
                     
-                    with st.form(key=f"form_{mecz_id}", border=False):
-                        col1, col2, col3, col4 = st.columns([1.5, 0.5, 1.5, 2])
-                        
-                        with col1:
-                            typ_h = st.number_input("H", min_value=0, max_value=20, step=1, value=wartosc_home, key=f"h_{mecz_id}", label_visibility="collapsed")
-                        with col2:
+                    # prefix_zakladki gwarantuje, że Streamlit się nie pomyli, jeśli ten sam mecz jest w 2 miejscach
+                    with st.form(key=f"form_{mid}_{prefix_zakladki}", border=False):
+                        c1, c2, c3, c4 = st.columns([1.5, 0.5, 1.5, 2])
+                        with c1:
+                            t_h = st.number_input("H", min_value=0, max_value=20, step=1, value=val_h, key=f"h_{mid}_{prefix_zakladki}", label_visibility="collapsed")
+                        with c2:
                             st.markdown("<h3 style='text-align: center; margin-top: -10px;'>:</h3>", unsafe_allow_html=True)
-                        with col3:
-                            typ_a = st.number_input("A", min_value=0, max_value=20, step=1, value=wartosc_away, key=f"a_{mecz_id}", label_visibility="collapsed")
-                        with col4:
-                            etykieta_przycisku = "Zaktualizuj typ" if obecny_typ else "Zapisz typ"
-                            zapisano = st.form_submit_button(etykieta_przycisku, width="stretch")
+                        with c3:
+                            t_a = st.number_input("A", min_value=0, max_value=20, step=1, value=val_a, key=f"a_{mid}_{prefix_zakladki}", label_visibility="collapsed")
+                        with c4:
+                            etykieta = "Zaktualizuj typ" if obecny_t else "Zapisz typ"
+                            zapisano = st.form_submit_button(etykieta, width="stretch")
                             
                         if zapisano:
                             with conn.session as s_zapis:
-                                if obecny_typ:
+                                if obecny_t:
                                     s_zapis.execute(text('''
                                         UPDATE typy SET typ_home = :th, typ_away = :ta 
                                         WHERE uzytkownik_id = :uid AND mecz_id = :mid
-                                    '''), {"th": typ_h, "ta": typ_a, "uid": st.session_state.user_id, "mid": mecz_id})
+                                    '''), {"th": t_h, "ta": t_a, "uid": st.session_state.user_id, "mid": mid})
                                 else:
                                     s_zapis.execute(text('''
                                         INSERT INTO typy (uzytkownik_id, mecz_id, typ_home, typ_away) 
                                         VALUES (:uid, :mid, :th, :ta)
-                                    '''), {"uid": st.session_state.user_id, "mid": mecz_id, "th": typ_h, "ta": typ_a})
+                                    '''), {"uid": st.session_state.user_id, "mid": mid, "th": t_h, "ta": t_a})
                                 s_zapis.commit()
-                            st.toast(f"Zapisano typ {typ_h}:{typ_a} dla {home} vs {away}", icon="✅")
+                            st.toast(f"Zapisano typ {t_h}:{t_a} dla {m_home} vs {m_away}", icon="✅")
                             time.sleep(0.5)
                             st.rerun()
                 else:
-                    if obecny_typ:
+                    if obecny_t:
                         punkty_info = ""
-                        if wynik_h is not None:
-                            moje_pkt = next((pkt for login, th, ta, pkt in slownik_wszystkich_typow.get(mecz_id, []) if login == st.session_state.login), 0)
+                        if m_wh is not None:
+                            moje_pkt = next((pkt for login, th, ta, pkt in slownik_wszystkich_typow.get(mid, []) if login == st.session_state.login), 0)
                             punkty_info = f"🏆 **Zdobyte punkty: {moje_pkt}**"
-                        st.info(f"Twój typ: **{obecny_typ[0]} : {obecny_typ[1]}** 🔒 {punkty_info}")
+                        st.info(f"Twój typ: **{obecny_t[0]} : {obecny_t[1]}** 🔒 {punkty_info}")
                     else:
                         st.warning("Nie wytypowano tego meczu. 🔒")
                         
-                    typy_dla_meczu = slownik_wszystkich_typow.get(mecz_id, [])
-                    if typy_dla_meczu:
+                    typy_dla_m = slownik_wszystkich_typow.get(mid, [])
+                    if typy_dla_m:
                         with st.expander("👀 Zobacz, jak obstawili inni znajomi"):
-                            for gracz_login, gracz_th, gracz_ta, gracz_pkt in typy_dla_meczu:
-                                znacznik_pkt = f" *(Pkt: {gracz_pkt})*" if wynik_h is not None else ""
-                                if gracz_login == st.session_state.login:
-                                    st.markdown(f"👤 **{gracz_login} (Ty)**: {gracz_th} : {gracz_ta}{znacznik_pkt}")
+                            for g_log, g_th, g_ta, g_pkt in typy_dla_m:
+                                z_pkt = f" *(Pkt: {g_pkt})*" if m_wh is not None else ""
+                                if g_log == st.session_state.login:
+                                    st.markdown(f"👤 **{g_log} (Ty)**: {g_th} : {g_ta}{z_pkt}")
                                 else:
-                                    st.markdown(f"👤 **{gracz_login}**: {gracz_th} : {gracz_ta}{znacznik_pkt}")
+                                    st.markdown(f"👤 **{g_log}**: {g_th} : {g_ta}{z_pkt}")
                     else:
                         with st.expander("👀 Zobacz, jak obstawili inni znajomi"):
                             st.caption("Nikt nie obstawił tego meczu.")
-                            
                 st.divider()
+
+            # 4. Rysowanie frontu aplikacji (Zakładki)
+            tab_nadchodzace, tab_zakonczone, tab_kalendarz = st.tabs(["⏳ Nadchodzące", "✅ Zakończone", "📅 Kalendarz"])
+            
+            with tab_nadchodzace:
+                if not mecze_aktywne:
+                    st.success("Wszystkie aktualne mecze zostały już rozegrane!")
+                else:
+                    for p in mecze_aktywne:
+                        renderuj_mecz(p, prefix_zakladki="nad")
+
+            with tab_zakonczone:
+                if not mecze_zakonczone:
+                    st.info("Brak zakończonych meczów w bazie.")
+                else:
+                    # Funkcja reversed() odwraca listę - najświeższe wyniki są na samej górze
+                    for p in reversed(mecze_zakonczone):
+                        renderuj_mecz(p, prefix_zakladki="zak")
+
+            with tab_kalendarz:
+                for dzien, lista_meczow in mecze_kalendarz.items():
+                    # Tworzymy zwijany panel dla każdej daty
+                    with st.expander(f"📁 Mecze z dnia: {dzien}"):
+                        for p in lista_meczow:
+                            renderuj_mecz(p, prefix_zakladki=f"kal_{dzien}")
