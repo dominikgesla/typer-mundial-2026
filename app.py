@@ -112,12 +112,18 @@ def automatyczna_synchronizacja():
 automatyczna_synchronizacja()
 
 # --- MECHANIZM AUTO-WYLOGOWANIA (BRAK AKTYWNOŚCI) ---
-LIMIT_NIEAKTYWNOSCI = 30 * 60  
+LIMIT_NIEAKTYWNOSCI = 259200 
 obecny_czas = time.time()
 
 c_login = controller.get("login")
 c_user_id = controller.get("user_id")
 c_ostatnia_aktywnosc = controller.get("ostatnia_aktywnosc")
+
+if not c_login:
+    time.sleep(0.5)
+    c_login = controller.get("login")
+    c_user_id = controller.get("user_id")
+    c_ostatnia_aktywnosc = controller.get("ostatnia_aktywnosc")
 
 if 'zalogowany' not in st.session_state:
     st.session_state.zalogowany = False
