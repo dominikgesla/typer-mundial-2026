@@ -476,10 +476,11 @@ else:
         if not mecze:
             st.info("Brak meczów w bazie.")
         else:
-            # 2. Segregacja meczów do odpowiednich koszyków
+           # 2. Segregacja meczów do odpowiednich koszyków
             mecze_aktywne = []
             mecze_zakonczone = []
             mecze_kalendarz = {}
+            brak_typow_48h = 0  # <--- INICJALIZACJA NASZEGO INTELIGENTNEGO LICZNIKA
 
             for mecz in mecze:
                 mecz_id, home, away, data_utc, status, wynik_h, wynik_a = mecz
@@ -496,6 +497,14 @@ else:
                     if obecny_czas_utc < data_utc:
                         status_pl = "Zaplanowany"
                         mozna_typowac = True
+                        
+                        # --- INTELIGENTNY SYSTEM ALERTÓW (48H + Odrzucenie TBD) ---
+                        sekundy_do_meczu = (data_utc - obecny_czas_utc).total_seconds()
+                        if sekundy_do_meczu <= 48 * 3600:  # 48 godzin przeliczone na sekundy
+                            if "TBD" not in home.upper() and "TBD" not in away.upper():
+                                if mecz_id not in slownik_typow:
+                                    brak_typow_48h += 1
+                                    
                     else:
                         status_pl = "Rozpoczęty (Zakłady zamknięte)"
                         mozna_typowac = False
@@ -543,7 +552,8 @@ else:
                             t_a = st.number_input("A", min_value=0, max_value=20, step=1, value=val_a, key=f"a_{mid}_{prefix_zakladki}", label_visibility="collapsed")
                         with c4:
                             etykieta = "Zaktualizuj typ" if obecny_t else "Zapisz typ"
-                            zapisano = st.form_submit_button(etykieta, width="stretch")
+                            typ_przycisku = "secondary" if obecny_t else "primary"
+                            zapisano = st.form_submit_button(etykieta, width="stretch", type=typ_przycisku)
                             
                         if zapisano:
                             with conn.session as s_zapis:
@@ -589,6 +599,9 @@ else:
             tab_nadchodzace, tab_zakonczone, tab_kalendarz = st.tabs(["⏳ Nadchodzące", "✅ Zakończone", "📅 Kalendarz"])
             
             with tab_nadchodzace:
+                if brak_typow_48h > 0:
+                    st.error(f"🚨 **UWAGA!** W ciągu najbliższych 48h startują mecze, na które nie masz typu (Brakujące typy: **{brak_typow_48h}**). Zjedź w dół i uzupełnij!")
+
                 if not mecze_aktywne:
                     st.success("Wszystkie aktualne mecze zostały już rozegrane!")
                 else:
