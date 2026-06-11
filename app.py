@@ -544,12 +544,11 @@ else:
                         '''), {"uid": st.session_state.user_id, "mid": m_id, "th": val_h, "ta": val_a})
                     s_zapis.commit()
                 
-                # --- TWARDY RESET PAMIĘCI WIDŻETÓW (OSTATECZNY FIX DLA iOS) ---
                 for zakladka in ["nad", "zak", "kal"]:
-                    if f"h_{m_id}_{zakladka}" in st.session_state:
-                        del st.session_state[f"h_{m_id}_{zakladka}"]
-                    if f"a_{m_id}_{zakladka}" in st.session_state:
-                        del st.session_state[f"a_{m_id}_{zakladka}"]
+                    st.session_state[f"h_{m_id}_{zakladka}"] = val_h
+                    st.session_state[f"a_{m_id}_{zakladka}"] = val_a
+                    
+                st.cache_data.clear()
 
             def renderuj_mecz(pakiet_meczu, prefix_zakladki):
                 mid, m_home, m_away, m_czas, m_status, m_mozna, m_wh, m_wa = pakiet_meczu
