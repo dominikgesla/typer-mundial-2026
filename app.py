@@ -526,22 +526,40 @@ else:
                     mecze_kalendarz[dzien_klucz] = []
                 mecze_kalendarz[dzien_klucz].append(pakiet)
 
-            # 3. Funkcja pomocnicza: Rysuje cały blok meczu (zapobiega konfliktom i powielaniu kodu)
+            # 3. Funkcje pomocnicze
+            def zapisz_typ_callback(m_id, pref, czy_aktualizacja, druzyna_h, druzyna_a):
+                val_h = st.session_state[f"h_{m_id}_{pref}"]
+                val_a = st.session_state[f"a_{m_id}_{pref}"]
+                
+                with conn.session as s_zapis:
+                    if czy_aktualizacja:
+                        s_zapis.execute(text('''
+                            UPDATE typy SET typ_home = :th, typ_away = :ta 
+                            WHERE uzytkownik_id = :uid AND mecz_id = :mid
+                        '''), {"th": val_h, "ta": val_a, "uid": st.session_state.user_id, "mid": m_id})
+                    else:
+                        s_zapis.execute(text('''
+                            INSERT INTO typy (uzytkownik_id, mecz_id, typ_home, typ_away) 
+                            VALUES (:uid, :mid, :th, :ta)
+                        '''), {"uid": st.session_state.user_id, "mid": m_id, "th": val_h, "ta": val_a})
+                    s_zapis.commit()
+                st.toast(f"Zapisano typ {val_h}:{val_a} dla {druzyna_h} vs {druzyna_a}", icon="✅")
+
             def renderuj_mecz(pakiet_meczu, prefix_zakladki):
                 mid, m_home, m_away, m_czas, m_status, m_mozna, m_wh, m_wa = pakiet_meczu
                 
                 wynik_wyswietl = f"&nbsp;&nbsp;{m_wh} : {m_wa}&nbsp;&nbsp;" if m_wh is not None else "&nbsp;&nbsp;⚔️&nbsp;&nbsp;"
                 st.markdown(f"#### {m_home} {wynik_wyswietl} {m_away}")
                 
-                st.markdown(f"<div style='font-size: 1.15em; opacity: 0.8; margin-bottom: 15px;'>🕒 <b>{m_czas}</b> | Status: <b>{m_status}</b></div>", unsafe_allow_html=True)
-                
                 obecny_t = slownik_typow.get(mid)
+                
+                alert_braku = "<span style='color: red; font-weight: bold;'>🚨 BRAK TYPU!</span> | " if m_mozna and not obecny_t else ""
+                st.markdown(f"<div style='font-size: 1.15em; opacity: 0.8; margin-bottom: 15px;'>{alert_braku}🕒 <b>{m_czas}</b> | Status: <b>{m_status}</b></div>", unsafe_allow_html=True)
                 
                 if m_mozna:
                     val_h = obecny_t[0] if obecny_t else 0
                     val_a = obecny_t[1] if obecny_t else 0
                     
-                    # prefix_zakladki gwarantuje, że Streamlit się nie pomyli, jeśli ten sam mecz jest w 2 miejscach
                     with st.form(key=f"form_{mid}_{prefix_zakladki}", border=False):
                         c1, c2, c3, c4 = st.columns([1.5, 0.5, 1.5, 2])
                         with c1:
@@ -553,24 +571,14 @@ else:
                         with c4:
                             etykieta = "Zaktualizuj typ" if obecny_t else "Zapisz typ"
                             typ_przycisku = "secondary" if obecny_t else "primary"
-                            zapisano = st.form_submit_button(etykieta, width="stretch", type=typ_przycisku)
                             
-                        if zapisano:
-                            with conn.session as s_zapis:
-                                if obecny_t:
-                                    s_zapis.execute(text('''
-                                        UPDATE typy SET typ_home = :th, typ_away = :ta 
-                                        WHERE uzytkownik_id = :uid AND mecz_id = :mid
-                                    '''), {"th": t_h, "ta": t_a, "uid": st.session_state.user_id, "mid": mid})
-                                else:
-                                    s_zapis.execute(text('''
-                                        INSERT INTO typy (uzytkownik_id, mecz_id, typ_home, typ_away) 
-                                        VALUES (:uid, :mid, :th, :ta)
-                                    '''), {"uid": st.session_state.user_id, "mid": mid, "th": t_h, "ta": t_a})
-                                s_zapis.commit()
-                            st.toast(f"Zapisano typ {t_h}:{t_a} dla {m_home} vs {m_away}", icon="✅")
-                            time.sleep(0.5)
-                            st.rerun()
+                            st.form_submit_button(
+                                etykieta, 
+                                width="stretch", 
+                                type=typ_przycisku,
+                                on_click=zapisz_typ_callback,
+                                args=(mid, prefix_zakladki, bool(obecny_t), m_home, m_away)
+                            )
                 else:
                     if obecny_t:
                         punkty_info = ""
@@ -583,7 +591,7 @@ else:
                         
                     typy_dla_m = slownik_wszystkich_typow.get(mid, [])
                     if typy_dla_m:
-                        with st.expander("👀 Zobacz, jak obstawili inni znajomi"):
+                        with st.expander("👀 Zobacz, jak obstawili inni gracze"):
                             for g_log, g_th, g_ta, g_pkt in typy_dla_m:
                                 z_pkt = f" *(Pkt: {g_pkt})*" if m_wh is not None else ""
                                 if g_log == st.session_state.login:
