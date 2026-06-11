@@ -547,10 +547,8 @@ else:
                 # --- SYNCHRONIZACJA ZAKŁADEK (FIX DLA iOS/SAFARI) ---
                 # Wymuszamy nadpisanie pamięci Streamlita dla wszystkich pozostałych zakładek
                 for zakladka in ["nad", "zak", "kal"]:
-                    if f"h_{m_id}_{zakladka}" in st.session_state:
-                        st.session_state[f"h_{m_id}_{zakladka}"] = val_h
-                    if f"a_{m_id}_{zakladka}" in st.session_state:
-                        st.session_state[f"a_{m_id}_{zakladka}"] = val_a
+                    st.session_state[f"h_{m_id}_{zakladka}"] = val_h
+                    st.session_state[f"a_{m_id}_{zakladka}"] = val_a
 
             def renderuj_mecz(pakiet_meczu, prefix_zakladki):
                 mid, m_home, m_away, m_czas, m_status, m_mozna, m_wh, m_wa = pakiet_meczu
