@@ -556,7 +556,7 @@ else:
                     if not obecny_t:
                         alert_braku = "<span style='color: #ff4b4b; font-weight: bold;'>🚨 BRAK TYPU!</span> | "
                     else:
-                        alert_braku = "<span style='color: #00cc66; font-weight: bold;'>✅ ZAPISANO!</span> | "
+                        alert_braku = "<span style='color: #888888; font-weight: 500;'>✅ Typ zapisany</span> | "
                 else:
                     alert_braku = ""
                     
