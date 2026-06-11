@@ -526,7 +526,7 @@ else:
                     mecze_kalendarz[dzien_klucz] = []
                 mecze_kalendarz[dzien_klucz].append(pakiet)
 
-            # 3. Funkcje pomocnicze
+           # 3. Funkcje pomocnicze
             def zapisz_typ_callback(m_id, pref, czy_aktualizacja, druzyna_h, druzyna_a):
                 val_h = st.session_state[f"h_{m_id}_{pref}"]
                 val_a = st.session_state[f"a_{m_id}_{pref}"]
@@ -543,7 +543,6 @@ else:
                             VALUES (:uid, :mid, :th, :ta)
                         '''), {"uid": st.session_state.user_id, "mid": m_id, "th": val_h, "ta": val_a})
                     s_zapis.commit()
-                st.toast(f"Zapisano typ {val_h}:{val_a} dla {druzyna_h} vs {druzyna_a}", icon="✅")
 
             def renderuj_mecz(pakiet_meczu, prefix_zakladki):
                 mid, m_home, m_away, m_czas, m_status, m_mozna, m_wh, m_wa = pakiet_meczu
@@ -553,7 +552,14 @@ else:
                 
                 obecny_t = slownik_typow.get(mid)
                 
-                alert_braku = "<span style='color: red; font-weight: bold;'>🚨 BRAK TYPU!</span> | " if m_mozna and not obecny_t else ""
+                if m_mozna:
+                    if not obecny_t:
+                        alert_braku = "<span style='color: #ff4b4b; font-weight: bold;'>🚨 BRAK TYPU!</span> | "
+                    else:
+                        alert_braku = "<span style='color: #00cc66; font-weight: bold;'>✅ ZAPISANO!</span> | "
+                else:
+                    alert_braku = ""
+                    
                 st.markdown(f"<div style='font-size: 1.15em; opacity: 0.8; margin-bottom: 15px;'>{alert_braku}🕒 <b>{m_czas}</b> | Status: <b>{m_status}</b></div>", unsafe_allow_html=True)
                 
                 if m_mozna:
