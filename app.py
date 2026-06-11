@@ -609,20 +609,30 @@ else:
                             st.caption("Nikt nie obstawił tego meczu.")
                 st.divider()
 
+                st.markdown("<div id='gora-strony'></div>", unsafe_allow_html=True)
+
             # 4. Rysowanie frontu aplikacji (Zakładki)
             tab_nadchodzace, tab_zakonczone, tab_kalendarz = st.tabs(["⏳ Nadchodzące", "✅ Zakończone", "📅 Kalendarz"])
             
             with tab_nadchodzace:
+                # Wyświetlamy alert tylko wtedy, gdy faktycznie czegoś brakuje
                 if brak_typow_48h > 0:
                     st.error(f"🚨 Brak typów na najbliższe 48h: **{brak_typow_48h}**")
-                else:
-                    st.success("✅ Wszystkie typy na najbliższe 48h są zapisane!")
 
                 if not mecze_aktywne:
                     st.success("Wszystkie aktualne mecze zostały już rozegrane!")
                 else:
                     for p in mecze_aktywne:
                         renderuj_mecz(p, prefix_zakladki="nad")
+                    
+                    # --- PRZYCISK POWROTU NA GÓRĘ ---
+                    st.markdown("""
+                        <a href="#gora-strony" target="_self" style="text-decoration: none;">
+                            <div style="background-color: #ff4b4b; color: white; text-align: center; padding: 10px; border-radius: 8px; margin-top: 25px; font-weight: bold; cursor: pointer;">
+                                ⬆️ Wróć na górę strony
+                            </div>
+                        </a>
+                    """, unsafe_allow_html=True)
 
             with tab_zakonczone:
                 if not mecze_zakonczone:
