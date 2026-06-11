@@ -526,10 +526,14 @@ else:
                     mecze_kalendarz[dzien_klucz] = []
                 mecze_kalendarz[dzien_klucz].append(pakiet)
 
-           # 3. Funkcje pomocnicze
+          # 3. Funkcje pomocnicze
             def zapisz_typ_callback(m_id, pref, czy_aktualizacja, druzyna_h, druzyna_a):
-                val_h = st.session_state[f"h_{m_id}_{pref}"]
-                val_a = st.session_state[f"a_{m_id}_{pref}"]
+                # Odczytujemy aktualny licznik odświeżeń
+                rfsh = st.session_state.get("form_refresh", 0)
+                
+                # Pobieramy wpisane wartości używając kluczy z obecnym licznikiem
+                val_h = st.session_state[f"h_{m_id}_{pref}_{rfsh}"]
+                val_a = st.session_state[f"a_{m_id}_{pref}_{rfsh}"]
                 
                 with conn.session as s_zapis:
                     if czy_aktualizacja:
@@ -544,10 +548,14 @@ else:
                         '''), {"uid": st.session_state.user_id, "mid": m_id, "th": val_h, "ta": val_a})
                     s_zapis.commit()
                 
-                for zakladka in ["nad", "zak", "kal"]:
-                    st.session_state[f"h_{m_id}_{zakladka}"] = val_h
-                    st.session_state[f"a_{m_id}_{zakladka}"] = val_a
-                    
+                # --- NUKLEARNY RESET ---
+                # Zmieniamy wartość licznika odświeżeń.
+                # To sprawi, że w ułamku sekundy KAŻDY formularz na stronie zmieni swoje ID,
+                # wymuszając na Streamlicie zignorowanie starej pamięci i pobranie wyników z bazy.
+                if "form_refresh" not in st.session_state:
+                    st.session_state["form_refresh"] = 0
+                st.session_state["form_refresh"] += 1
+                
                 st.cache_data.clear()
 
             def renderuj_mecz(pakiet_meczu, prefix_zakladki):
@@ -558,6 +566,7 @@ else:
                 
                 obecny_t = slownik_typow.get(mid)
                 
+                # --- STABILIZACJA WIZUALNA ---
                 if m_mozna:
                     if not obecny_t:
                         alert_braku = "<span style='color: #ff4b4b; font-weight: bold;'>🚨 BRAK TYPU!</span> | "
@@ -572,14 +581,18 @@ else:
                     val_h = obecny_t[0] if obecny_t else 0
                     val_a = obecny_t[1] if obecny_t else 0
                     
-                    with st.form(key=f"form_{mid}_{prefix_zakladki}", border=False):
+                    # Pobieramy stan licznika do dynamicznych kluczy
+                    rfsh = st.session_state.get("form_refresh", 0)
+                    
+                    # UWAGA: Dodaliśmy zmienną rfsh do klucza formularza i każdego pola!
+                    with st.form(key=f"form_{mid}_{prefix_zakladki}_{rfsh}", border=False):
                         c1, c2, c3, c4 = st.columns([1.5, 0.5, 1.5, 2])
                         with c1:
-                            t_h = st.number_input("H", min_value=0, max_value=20, step=1, value=val_h, key=f"h_{mid}_{prefix_zakladki}", label_visibility="collapsed")
+                            t_h = st.number_input("H", min_value=0, max_value=20, step=1, value=val_h, key=f"h_{mid}_{prefix_zakladki}_{rfsh}", label_visibility="collapsed")
                         with c2:
                             st.markdown("<h3 style='text-align: center; margin-top: -10px;'>:</h3>", unsafe_allow_html=True)
                         with c3:
-                            t_a = st.number_input("A", min_value=0, max_value=20, step=1, value=val_a, key=f"a_{mid}_{prefix_zakladki}", label_visibility="collapsed")
+                            t_a = st.number_input("A", min_value=0, max_value=20, step=1, value=val_a, key=f"a_{mid}_{prefix_zakladki}_{rfsh}", label_visibility="collapsed")
                         with c4:
                             etykieta = "Zaktualizuj typ" if obecny_t else "Zapisz typ"
                             typ_przycisku = "secondary" if obecny_t else "primary"
@@ -592,6 +605,7 @@ else:
                                 args=(mid, prefix_zakladki, bool(obecny_t), m_home, m_away)
                             )
                 else:
+                    # ... (tutaj reszta kodu z punktacją, bez zmian) ...
                     if obecny_t:
                         punkty_info = ""
                         if m_wh is not None:
