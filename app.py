@@ -560,7 +560,7 @@ else:
                 else:
                     alert_braku = ""
                     
-                st.markdown(f"<div style='font-size: 1.15em; opacity: 0.8; margin-bottom: 15px;'>{alert_braku}🕒 <b>{m_czas}</b> | Status: <b>{m_status}</b></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='display: block; min-height: 35px; font-size: 1.15em; opacity: 0.8; margin-bottom: 15px;'>{alert_braku}🕒 <b>{m_czas}</b> | Status: <b>{m_status}</b></div>", unsafe_allow_html=True)
                 
                 if m_mozna:
                     val_h = obecny_t[0] if obecny_t else 0
@@ -614,7 +614,9 @@ else:
             
             with tab_nadchodzace:
                 if brak_typow_48h > 0:
-                    st.error(f"🚨 **UWAGA!** W ciągu najbliższych 48h startują mecze, na które nie masz typu (Brakujące typy: **{brak_typow_48h}**). Zjedź w dół i uzupełnij!")
+                    st.error(f"🚨 Brak typów na najbliższe 48h: **{brak_typow_48h}**")
+                else:
+                    st.success("✅ Wszystkie typy na najbliższe 48h są zapisane!")
 
                 if not mecze_aktywne:
                     st.success("Wszystkie aktualne mecze zostały już rozegrane!")
