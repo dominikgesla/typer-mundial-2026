@@ -543,6 +543,14 @@ else:
                             VALUES (:uid, :mid, :th, :ta)
                         '''), {"uid": st.session_state.user_id, "mid": m_id, "th": val_h, "ta": val_a})
                     s_zapis.commit()
+                
+                # --- SYNCHRONIZACJA ZAKŁADEK (FIX DLA iOS/SAFARI) ---
+                # Wymuszamy nadpisanie pamięci Streamlita dla wszystkich pozostałych zakładek
+                for zakladka in ["nad", "zak", "kal"]:
+                    if f"h_{m_id}_{zakladka}" in st.session_state:
+                        st.session_state[f"h_{m_id}_{zakladka}"] = val_h
+                    if f"a_{m_id}_{zakladka}" in st.session_state:
+                        st.session_state[f"a_{m_id}_{zakladka}"] = val_a
 
             def renderuj_mecz(pakiet_meczu, prefix_zakladki):
                 mid, m_home, m_away, m_czas, m_status, m_mozna, m_wh, m_wa = pakiet_meczu
@@ -615,7 +623,6 @@ else:
             tab_nadchodzace, tab_zakonczone, tab_kalendarz = st.tabs(["⏳ Nadchodzące", "✅ Zakończone", "📅 Kalendarz"])
             
             with tab_nadchodzace:
-                # Wyświetlamy alert tylko wtedy, gdy faktycznie czegoś brakuje
                 if brak_typow_48h > 0:
                     st.error(f"🚨 Brak typów na najbliższe 48h: **{brak_typow_48h}**")
 
