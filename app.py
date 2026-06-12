@@ -30,8 +30,10 @@ def hash_password(password):
 def verify_password(password, hashed_password):
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
 
+if "last_refresh_time" not in st.session_state:
+    st.session_state.last_refresh_time = 0
+
 # --- RDZEŃ POBIERANIA WYNIKÓW ---
-#@st.cache_data(ttl=60)
 def pobierz_wyniki_z_api():
     if not API_KEY or API_KEY == "WKLEJ_TUTAJ_SWOJ_KLUCZ_Z_FOOTBALL_DATA":
         return 
@@ -92,21 +94,18 @@ def automatyczna_synchronizacja():
         start_meczu = mecz[1]
         minuty_od_startu = (teraz - start_meczu).total_seconds() / 60.0
         
-        # 1. Okno: Przerwa (od 45 do 55 minuty)
-        if 45 <= minuty_od_startu <= 55:
+        if 105 <= minuty_od_startu <= 120:
             czy_odpytac_api = True
             break
-        # 2. Okno: Koniec meczu (od 105 do 120 minuty)
-        elif 105 <= minuty_od_startu <= 120:
-            czy_odpytac_api = True
-            break
-        # 3. Nadrabianie nocnych meczów (więcej niż 120 minut i wciąż brak statusu FINISHED)
+        
         elif minuty_od_startu > 180:
             czy_odpytac_api = True
             break
 
     if czy_odpytac_api:
-        pobierz_wyniki_z_api()
+        if time.time() - st.session_state.last_refresh_time > 60:
+            pobierz_wyniki_z_api()
+            st.session_state.last_refresh_time = time.time()
 
 # Uruchomienie automatu w tle
 automatyczna_synchronizacja()
@@ -332,7 +331,7 @@ else:
                         st.error(f"Połączenie nie powiodło się: {e}")
 
         with st.expander("📝 Ręczne dodawanie i edycja meczów (Do testów)"):
-            st.markdown("### Krok 1: Dodaj sztuczny mecz")
+            st.markdown("### Krok 1: Dodaj mecz")
             col_h, col_a = st.columns(2)
             with col_h:
                 nowy_home = st.text_input("Gospodarz (np. Polska)")
@@ -430,9 +429,20 @@ else:
         st.subheader("📅 Terminarz i Typy")
     with col_odswiez:
         if st.button("🔄 Odśwież wyniki", width="stretch", type="primary"):
-            with st.spinner("Pobieranie najnowszych danych..."):
-                pobierz_wyniki_z_api()
-            st.rerun()
+            # Obliczamy ile sekund minęło od ostatniego zapytania
+            elapsed = time.time() - st.session_state.last_refresh_time
+    
+            if elapsed > 60:
+                # Jeśli minęło > 60s, robimy zapytanie
+                with st.spinner("Łączenie z serwerem API..."):
+                    pobierz_wyniki_z_api() 
+                    st.session_state.last_refresh_time = time.time()
+                    st.success("Baza danych zaktualizowana!")
+                    st.rerun()
+            else:
+                # Jeśli minęło < 60s, blokujemy i informujemy użytkownika
+                seconds_left = int(60 - elapsed)
+                st.warning(f"Limit API! Odczekaj jeszcze {seconds_left} s przed kolejnym odświeżeniem.")
 
     # --- PANEL Z ZASADAMI PUNKTACJI ---
     with st.expander("ℹ️ Zobacz zasady punktacji turnieju"):
@@ -480,7 +490,7 @@ else:
             mecze_aktywne = []
             mecze_zakonczone = []
             mecze_kalendarz = {}
-            brak_typow_48h = 0  # <--- INICJALIZACJA NASZEGO INTELIGENTNEGO LICZNIKA
+            brak_typow_48h = 0
 
             for mecz in mecze:
                 mecz_id, home, away, data_utc, status, wynik_h, wynik_a = mecz
@@ -500,7 +510,7 @@ else:
                         
                         # --- INTELIGENTNY SYSTEM ALERTÓW (48H + Odrzucenie TBD) ---
                         sekundy_do_meczu = (data_utc - obecny_czas_utc).total_seconds()
-                        if sekundy_do_meczu <= 48 * 3600:  # 48 godzin przeliczone na sekundy
+                        if sekundy_do_meczu <= 48 * 3600: 
                             if "TBD" not in home.upper() and "TBD" not in away.upper():
                                 if mecz_id not in slownik_typow:
                                     brak_typow_48h += 1
@@ -528,10 +538,8 @@ else:
 
           # 3. Funkcje pomocnicze
             def zapisz_typ_callback(m_id, pref, czy_aktualizacja, druzyna_h, druzyna_a):
-                # Odczytujemy aktualny licznik odświeżeń
                 rfsh = st.session_state.get("form_refresh", 0)
                 
-                # Pobieramy wpisane wartości używając kluczy z obecnym licznikiem
                 val_h = st.session_state[f"h_{m_id}_{pref}_{rfsh}"]
                 val_a = st.session_state[f"a_{m_id}_{pref}_{rfsh}"]
                 
@@ -548,10 +556,6 @@ else:
                         '''), {"uid": st.session_state.user_id, "mid": m_id, "th": val_h, "ta": val_a})
                     s_zapis.commit()
                 
-                # --- NUKLEARNY RESET ---
-                # Zmieniamy wartość licznika odświeżeń.
-                # To sprawi, że w ułamku sekundy KAŻDY formularz na stronie zmieni swoje ID,
-                # wymuszając na Streamlicie zignorowanie starej pamięci i pobranie wyników z bazy.
                 if "form_refresh" not in st.session_state:
                     st.session_state["form_refresh"] = 0
                 st.session_state["form_refresh"] += 1
@@ -584,7 +588,6 @@ else:
                     # Pobieramy stan licznika do dynamicznych kluczy
                     rfsh = st.session_state.get("form_refresh", 0)
                     
-                    # UWAGA: Dodaliśmy zmienną rfsh do klucza formularza i każdego pola!
                     with st.form(key=f"form_{mid}_{prefix_zakladki}_{rfsh}", border=False):
                         c1, c2, c3, c4 = st.columns([1.5, 0.5, 1.5, 2])
                         with c1:
@@ -605,7 +608,6 @@ else:
                                 args=(mid, prefix_zakladki, bool(obecny_t), m_home, m_away)
                             )
                 else:
-                    # ... (tutaj reszta kodu z punktacją, bez zmian) ...
                     if obecny_t:
                         punkty_info = ""
                         if m_wh is not None:
