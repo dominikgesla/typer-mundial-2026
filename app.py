@@ -309,18 +309,19 @@ else:
                             with conn.session as s:
                                 for f in fixtures:
                                     ext_id = f["id"]
-                                    data_meczu = f["utcDate"] 
-                                    status_meczu = f["status"]
-                                    home_team = f["homeTeam"]["name"] if f.get("homeTeam") and f["homeTeam"].get("name") else "TBD"
-                                    away_team = f["awayTeam"]["name"] if f.get("awayTeam") and f["awayTeam"].get("name") else "TBD"
-                                    
-                                    s.execute(text('''
-                                        INSERT INTO mecze (druzyna_home, druzyna_away, data_rozpoczecia, status, external_match_id)
-                                        VALUES (:home, :away, :data, :status, :ext_id)
-                                        ON CONFLICT (external_match_id) DO UPDATE 
-                                        SET data_rozpoczecia = :data, status = :status, 
-                                            druzyna_home = :home, druzyna_away = :away;
-                                    '''), {"home": home_team, "away": away_team, "data": data_meczu, "status": status_meczu, "ext_id": ext_id})
+                                    if ext_id >= 562:  
+                                        data_meczu = f["utcDate"] 
+                                        status_meczu = f["status"]
+                                        home_team = f["homeTeam"]["name"] if f.get("homeTeam") and f["homeTeam"].get("name") else "TBD"
+                                        away_team = f["awayTeam"]["name"] if f.get("awayTeam") and f["awayTeam"].get("name") else "TBD"
+                                        
+                                        s.execute(text('''
+                                            INSERT INTO mecze (druzyna_home, druzyna_away, data_rozpoczecia, status, external_match_id)
+                                            VALUES (:home, :away, :data, :status, :ext_id)
+                                            ON CONFLICT (external_match_id) DO UPDATE 
+                                            SET data_rozpoczecia = :data, status = :status, 
+                                                druzyna_home = :home, druzyna_away = :away;
+                                        '''), {"home": home_team, "away": away_team, "data": data_meczu, "status": status_meczu, "ext_id": ext_id})
                                 s.commit()
                             st.success(f"Sukces! Zsynchronizowano {len(fixtures)} meczów Mundialu.")
                             time.sleep(1.5)
@@ -407,16 +408,27 @@ else:
     st.header("🏆 Tabela Liderów")
     with conn.session as s:
         ranking = s.execute(text('''
-            SELECT u.login, SUM(COALESCE(t.punkty, 0)) as total_pkt
+            SELECT 
+                u.login, 
+                SUM(COALESCE(t.punkty, 0)) as total_pkt,
+                SUM(CASE WHEN t.punkty = 5 THEN 1 ELSE 0 END) as dokladne_trafienia
             FROM uzytkownicy u
             LEFT JOIN typy t ON u.id = t.uzytkownik_id
             WHERE u.login != 'admin'
             GROUP BY u.login
-            ORDER BY total_pkt DESC, u.login ASC
+            ORDER BY total_pkt DESC, dokladne_trafienia DESC, u.login ASC
         ''')).fetchall()
         
         if ranking:
-            ranking_data = [{"Miejsce": i+1, "Gracz": r[0], "Suma Punktów": r[1]} for i, r in enumerate(ranking)]
+            ranking_data = [
+                {
+                    "Miejsce": i+1, 
+                    "Gracz": r[0], 
+                    "Suma Pkt": r[1],
+                    "Trafiony DW": r[2]
+                } 
+                for i, r in enumerate(ranking)
+            ]
             st.dataframe(ranking_data, hide_index=True, width="stretch")
         else:
             st.info("Brak graczy do wyświetlenia.")
