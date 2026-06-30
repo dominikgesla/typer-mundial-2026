@@ -50,8 +50,23 @@ def pobierz_wyniki_z_api():
                     ext_id = f["id"]
                     status = f["status"]
                     
-                    h_score = f.get("score", {}).get("fullTime", {}).get("home")
-                    a_score = f.get("score", {}).get("fullTime", {}).get("away")
+                    score_data = f.get("score", {})
+                    duration = score_data.get("duration", "REGULAR")
+                    
+                    # Sprawdzamy czy był to zwykły mecz, czy była dogrywka/karne
+                    if duration in ["EXTRA_TIME", "PENALTY_SHOOTOUT"] and "regularTime" in score_data:
+                        # Pobieramy "czysty" wynik po regulaminowych 90 minutach
+                        h_score = score_data.get("regularTime", {}).get("home")
+                        a_score = score_data.get("regularTime", {}).get("away")
+                        
+                        # Zabezpieczenie: jeśli API nie zdążyło jeszcze wypełnić regularTime
+                        if h_score is None:
+                            h_score = score_data.get("fullTime", {}).get("home")
+                            a_score = score_data.get("fullTime", {}).get("away")
+                    else:
+                        # Mecz zakończył się w 90 minutach (lub w ogóle API nie podało duration)
+                        h_score = score_data.get("fullTime", {}).get("home")
+                        a_score = score_data.get("fullTime", {}).get("away")
                     
                     s.execute(text('''
                         UPDATE mecze 
